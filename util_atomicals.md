@@ -414,3 +414,236 @@ def get_if_parent_spent_in_same_tx(parent_atomical_id_compact, expected_minimum_
 - get_if_parent_spent_in_same_tx 函数的作用是检查输入的 parent_atomical_id_compact 是否在 atomicals_spent_at_inputs 中被花费。
 - 这个函数通常用于检查输入的 parent_atomical_id_compact 是否在 atomicals_spent_at_inputs 中被花费，例如在加密或数据传输中，可能需要检查输入的 parent_atomical_id_compact 是否在 atomicals_spent_at_inputs 中被花费。
 --- 
+
+```python
+def get_mint_info_op_factory(coin, tx, tx_hash, op_found_struct, atomicals_spent_at_inputs, height, logger):
+    script_hashX = coin.hashX_from_script
+    if not op_found_struct:
+        return None, None
+```
+--- 
+- get_mint_info_op_factory 函数的作用是获取输入的 op_found_struct 对应的 mint 信息结构。
+- 这个函数通常用于获取输入的 op_found_struct 对应的 mint 信息结构，例如在加密或数据传输中，可能需要获取输入的 op_found_struct 对应的 mint 信息结构。
+--- 
+```python
+def build_base_mint_info(commit_txid, commit_index, reveal_location_txid, reveal_location_index):
+    # The first output is always imprinted
+    expected_output_index = 0
+    txout = tx.outputs[expected_output_index]
+    scripthash = double_sha256(txout.pk_script)
+        hashX = script_hashX(txout.pk_script)
+        output_idx_le = pack_le_uint32(expected_output_index)
+        atomical_id = commit_txid + pack_le_uint32(commit_index)
+        location = reveal_location_txid + pack_le_uint32(reveal_location_index)
+        # sat_value = pack_le_uint64(txout.value)
+        # Create the general mint information
+        encoder = krock32.Encoder(checksum=False)
+        commit_txid_reversed = bytearray(commit_txid)
+        commit_txid_reversed.reverse()
+        encoder.update(commit_txid_reversed)
+        atomical_ref = encoder.finalize() + "i" + str(expected_output_index)
+        atomical_ref = atomical_ref.lower()
+        return {
+            "id": atomical_id,
+            "ref": atomical_ref,
+            "atomical_id": atomical_id,
+            "commit_txid": commit_txid,
+            "commit_index": commit_index,
+            "commit_location": commit_txid + pack_le_uint32(commit_index),
+            "reveal_location_txid": reveal_location_txid,
+            "reveal_location_index": reveal_location_index,
+            "reveal_location": location,
+            "reveal_location_scripthash": scripthash,
+            "reveal_location_hashX": hashX,
+            "reveal_location_value": txout.value,
+            "reveal_location_script": txout.pk_script,
+        }
+```
+--- 
+- build_base_mint_info 函数的作用是构建输入的 tx 对应的 mint 信息结构。
+- 这个函数通常用于构建输入的 tx 对应的 mint 信息结构，例如在加密或数据传输中，可能需要构建输入的 tx 对应的 mint 信息结构。
+--- 
+```python
+def populate_args_meta_ctx_init(mint_info, op_found_payload):
+    # Meta is used for metadata, description, name, links, etc
+    meta = op_found_payload.get("meta", {})
+    if not isinstance(meta, dict):
+        return False
+```
+--- 
+- populate_args_meta_ctx_init 函数的作用是填充输入的 mint_info 的 args、meta 和 ctx 字段。
+- 这个函数通常用于填充输入的 mint_info 的 args、meta 和 ctx 字段，例如在加密或数据传输中，可能需要填充输入的 mint_info 的 args、meta 和 ctx 字段。
+--- 
+```python
+   if op_found_struct["op"] == "nft" and op_found_struct["input_index"] == 0:
+        mint_info["type"] = "NFT"
+        realm = mint_info["args"].get("request_realm")
+        subrealm = mint_info["args"].get("request_subrealm")
+        container = mint_info["args"].get("request_container")
+        dmitem = mint_info["args"].get("request_dmitem")
+        # Strings evaulate to falsey when empty
+        # Reject any NFT which contains an empty string for any of the requests
+        if isinstance(realm, str) and realm == "":
+            logger.warning(
+                f"NFT request_realm is invalid detected empty request_realm str {hash_to_hex_str(tx_hash)}. Skipping...."
+            )
+            return None, None
+        if isinstance(subrealm, str) and subrealm == "":
+            logger.warning(
+                f"NFT request_subrealm is invalid detected empty request_subrealm str {hash_to_hex_str(tx_hash)}. Skipping...."
+            )
+            return None, None
+        if isinstance(container, str) and container == "":
+            logger.warning(
+                f"NFT request_container is invalid detected empty request_container str {hash_to_hex_str(tx_hash)}. Skipping...."
+            )
+            return None, None
+        if isinstance(dmitem, str) and dmitem == "":
+            logger.warning(
+                f"NFT request_dmitem is invalid detected empty request_dmitem str {hash_to_hex_str(tx_hash)}. Skipping...."
+            )
+            return None, None
+
+        if realm:
+            logger.debug(f"NFT request_realm {hash_to_hex_str(tx_hash)}, {realm}")
+            if not isinstance(realm, str) or not is_valid_realm_string_name(realm):
+                logger.warning(f"NFT request_realm is invalid {hash_to_hex_str(tx_hash)}, {realm}. Skipping....")
+                return None, None
+            mint_info["$request_realm"] = realm
+
+        elif subrealm:
+            if not isinstance(subrealm, str) or not is_valid_subrealm_string_name(subrealm):
+                logger.warning(f"NFT request_subrealm is invalid {hash_to_hex_str(tx_hash)}, {subrealm}. Skipping...")
+                return None, None
+            # The parent realm id is in a compact form string to make it easier for users and developers
+            # Only store the details if the pid is also set correctly
+            claim_type = mint_info["args"].get("claim_type")
+            if not isinstance(claim_type, str):
+                logger.warning(
+                    f"NFT request_subrealm claim_type is not a string {hash_to_hex_str(tx_hash)}, {claim_type}. Skipping..."
+                )
+                return None, None
+            if claim_type != "direct" and claim_type != "rule":
+                logger.warning(
+                    f"NFT request_subrealm claim_type is direct or a rule {hash_to_hex_str(tx_hash)}, {claim_type}. Skipping..."
+                )
+                return None, None
+            mint_info["$claim_type"] = claim_type
+            parent_realm_id_compact = mint_info["args"].get("parent_realm")
+            if not isinstance(parent_realm_id_compact, str) or not is_compact_atomical_id(parent_realm_id_compact):
+                logger.warning(
+                    f"NFT request_subrealm parent_realm is invalid {hash_to_hex_str(tx_hash)}, {parent_realm_id_compact}. Skipping..."
+                )
+                return None, None
+            mint_info["$request_subrealm"] = subrealm
+            # Save in the compact form to make it easier to understand for developers and users
+            # It requires an extra step to convert, but it makes it easier to understand the format
+            mint_info["$parent_realm"] = parent_realm_id_compact
+        elif dmitem:
+            if not isinstance(dmitem, str) or not is_valid_container_dmitem_string_name(dmitem):
+                logger.warning(f"NFT request_dmitem is invalid {hash_to_hex_str(tx_hash)}, {dmitem}. Skipping...")
+                return None, None
+            # The parent container id is in a compact form string to make it easier for users and developers
+            # Only store the details if the pid is also set correctly
+            parent_container_id_compact = mint_info["args"].get("parent_container")
+            if not isinstance(parent_container_id_compact, str) or not is_compact_atomical_id(
+                parent_container_id_compact
+            ):
+                logger.warning(
+                    f"NFT request_dmitem parent_container is invalid {hash_to_hex_str(tx_hash)}, {parent_container_id_compact}. Skipping..."
+                )
+                return None, None
+            mint_info["$request_dmitem"] = dmitem
+            # Save in the compact form to make it easier to understand for developers and users
+            # It requires an extra step to convert, but it makes it easier to understand the format
+            mint_info["$parent_container"] = parent_container_id_compact
+        elif container:
+            if not isinstance(container, str) or not is_valid_container_string_name(container):
+                logger.warning(f"NFT request_container is invalid {hash_to_hex_str(tx_hash)}, {container}. Skipping...")
+                return None, None
+            mint_info["$request_container"] = container
+        # containers, realms or subrealms cannot be immutable
+        if is_immutable:
+            if container or realm or subrealm:
+                logger.warning(
+                    f"NFT is invalid because container or realm or subrealm cannot be immutable {hash_to_hex_str(tx_hash)}. Skipping..."
+                )
+                return None, None
+            mint_info["$immutable"] = True
+```
+### 代码解释
+在处理NFT请求时，代码首先检查请求的类型是否为"NFT"，并且输入索引是否为0。如果不是，则直接返回None，表示处理失败。
+
+接下来，代码检查请求中是否包含"request_realm"、"request_subrealm"、"request_container"、"request_dmitem"等字段，并对它们进行有效性检查。如果这些字段为空字符串或格式不正确，则记录警告日志，并返回None，表示处理失败。
+
+对于"request_subrealm"和"request_dmitem"，代码还检查了它们的父级ID是否符合要求，并记录了相关的日志信息。
+
+最后，代码检查了是否存在不可变的NFT请求，如果存在，则记录警告日志，并返回None，表示处理失败。
+
+```python
+def format_name_type_candidates_to_rpc(raw_entries, atomical_id_to_candidate_info_map):
+    reformatted = []
+    for entry in raw_entries:
+        name_atomical_id = entry["value"]
+        txid, idx = get_tx_hash_index_from_location_id(name_atomical_id)
+        dataset = atomical_id_to_candidate_info_map[name_atomical_id]
+        reformatted.append(
+            {
+                "tx_num": entry["tx_num"],
+                "atomical_id": location_id_bytes_to_compact(name_atomical_id),
+                "txid": hash_to_hex_str(txid),
+                "commit_height": dataset["commit_height"],
+                "reveal_location_height": dataset["reveal_location_height"],
+            }
+        )
+    return reformatted
+```
+--- 
+- format_name_type_candidates_to_rpc 函数的作用是格式化输入的 raw_entries 和 atomical_id_to_candidate_info_map，并返回格式化后的结果。
+- 这个函数通常用于格式化输入的 raw_entries 和 atomical_id_to_candidate_info_map，例如在加密或数据传输中，可能需要格式化输入的 raw_entries 和 atomical_id_to_candidate_info_map。
+---     
+
+```python
+def format_name_type_candidates_to_rpc_for_subname(raw_entries, atomical_id_to_candidate_info_map):
+    reformatted = format_name_type_candidates_to_rpc(raw_entries, atomical_id_to_candidate_info_map)
+    for base_candidate in reformatted:
+        dataset = atomical_id_to_candidate_info_map[compact_to_location_id_bytes(base_candidate["atomical_id"])]
+        base_atomical_id = base_candidate["atomical_id"]
+        base_candidate["payment"] = dataset.get("payment")
+        base_candidate["payment_type"] = dataset.get("payment_type")
+        base_candidate["payment_subtype"] = dataset.get("payment_subtype")
+        if dataset.get("payment_type") == "applicable_rule":
+            # Recommendation to wait MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS blocks before making a payment
+            # The reason is that in case someone else has yet to reveal a competing name request
+            # After MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS blocks from the commit, it is no longer possible for someone else to have an earlier commit
+            base_candidate["make_payment_from_height"] = (
+                dataset["commit_height"] + MINT_REALM_CONTAINER_TICKER_COMMIT_REVEAL_DELAY_BLOCKS
+            )
+            base_candidate["payment_due_no_later_than_height"] = (
+                dataset["commit_height"] + MINT_SUBNAME_COMMIT_PAYMENT_DELAY_BLOCKS
+            )
+        applicable_rule = dataset.get("applicable_rule")
+        base_candidate["applicable_rule"] = applicable_rule
+    return reformatted
+```
+--- 
+- format_name_type_candidates_to_rpc_for_subname 函数的作用是格式化输入的 raw_entries 和 atomical_id_to_candidate_info_map，并返回格式化后的结果。
+- 这个函数通常用于格式化输入的 raw_entries 和 atomical_id_to_candidate_info_map，例如在加密或数据传输中，可能需要格式化输入的 raw_entries 和 atomical_id_to_candidate_info_map。
+---     
+
+# Format the relevant byte fields in the mint raw data into strings to send on rpc calls well formatted
+def convert_db_mint_info_to_rpc_mint_info_format(header_hash, mint_info):
+    mint_info["atomical_id"] = location_id_bytes_to_compact(mint_info["atomical_id"])
+    mint_info["mint_info"]["commit_txid"] = hash_to_hex_str(mint_info["mint_info"]["commit_txid"])
+    mint_info["mint_info"]["commit_location"] = location_id_bytes_to_compact(mint_info["mint_info"]["commit_location"])
+    mint_info["mint_info"]["reveal_location_txid"] = hash_to_hex_str(mint_info["mint_info"]["reveal_location_txid"])
+    mint_info["mint_info"]["reveal_location"] = location_id_bytes_to_compact(mint_info["mint_info"]["reveal_location"])
+    mint_info["mint_info"]["reveal_location_blockhash"] = header_hash(
+        mint_info["mint_info"]["reveal_location_header"]
+    ).hex()
+    mint_info["mint_info"]["reveal_location_header"] = mint_info["mint_info"]["reveal_location_header"].hex()
+    mint_info["mint_info"]["reveal_location_scripthash"] = hash_to_hex_str(
+        mint_info["mint_info"]["reveal_location_scripthash"]
+    )
+    mint_info["mint_info"]["reveal_location_script"] = mint_info["mint_info"]["reveal_location_script"].hex()
+    return mint_info
