@@ -1,0 +1,157 @@
+classDiagram
+    %% Core Layer
+    note for AtomicalsCore "File: electrumx/server/controller.py
+    主控制器，负责协调所有组件"
+    class AtomicalsCore {
+        +init_core()
+        +start_services()
+        +stop_services()
+        -config: Config
+        -logger: Logger
+    }
+
+    %% Network Layer
+    note for P2PNetwork "File: electrumx/server/peers.py
+    P2P网络实现"
+    class P2PNetwork {
+        +connect_to_peers()
+        +broadcast_tx()
+        +handle_messages()
+        -peer_manager: PeerManager
+        -message_handler: MessageHandler
+    }
+
+    note for ElectrumProtocol "File: electrumx/server/session/electrumx_session.py
+    Electrum协议实现"
+    class ElectrumProtocol {
+        +handle_client_connection()
+        +send_response()
+        +handle_subscription()
+        -session_manager: SessionManager
+    }
+
+    %% Data Processing Layer
+    note for BlockProcessor "File: electrumx/server/block_processor.py
+    区块处理实现"
+    class BlockProcessor {
+        +process_new_block()
+        +handle_reorg()
+        +validate_atomicals()
+        -current_height: int
+        -chain_state: ChainState
+    }
+
+    note for AtomicalsProcessor "Files: 
+    electrumx/lib/atomicals_blueprint_builder.py
+    electrumx/lib/util_atomicals.py"
+    class AtomicalsProcessor {
+        +process_atomicals_tx()
+        +validate_atomicals_rules()
+        +update_state()
+        -rules_engine: RulesEngine
+    }
+
+    note for UTXOManager "File: electrumx/server/mempool.py
+    UTXO和内存池管理"
+    class UTXOManager {
+        +track_utxos()
+        +get_utxo_set()
+        +update_utxo_set()
+        -utxo_cache: Cache
+    }
+
+    %% Storage Layer
+    note for StorageManager "File: electrumx/server/storage.py
+    存储管理实现"
+    class StorageManager {
+        +save_block_data()
+        +save_atomicals_data()
+        +get_atomicals_by_id()
+        -db: Database
+    }
+
+    note for Database "File: electrumx/server/db.py
+    数据库操作实现"
+    class Database {
+        +write()
+        +read()
+        +batch_write()
+        -connection_pool: Pool
+    }
+
+    %% API Layer
+    note for RPCServer "Files:
+    electrumx/server/session/rpc_session.py
+    electrumx/server/session/session_manager.py"
+    class RPCServer {
+        +start_server()
+        +handle_request()
+        +register_methods()
+        -methods: Dict
+    }
+
+    note for APIEndpoints "Files:
+    electrumx/server/session/http_session.py
+    electrumx/server/http_middleware.py"
+    class APIEndpoints {
+        +get_atomical_info()
+        +get_realm_info()
+        +get_container_info()
+        -rate_limiter: RateLimiter
+    }
+
+    %% State Management
+    note for StateManager "Files:
+    electrumx/server/history.py
+    electrumx/server/daemon.py"
+    class StateManager {
+        +update_global_state()
+        +get_current_state()
+        +verify_state()
+        -state_cache: Cache
+    }
+
+    %% Utility Classes
+    note for Config "Files:
+    electrumx/server/env.py
+    electrumx/lib/env_base.py"
+    class Config {
+        +load_config()
+        +get_setting()
+        +update_setting()
+        -settings: Dict
+    }
+
+    note for Logger "Files:
+    electrumx/lib/util.py
+    electrumx/lib/text.py"
+    class Logger {
+        +log_info()
+        +log_error()
+        +log_debug()
+        -log_file: File
+    }
+
+    %% Define relationships
+    AtomicalsCore --> Config
+    AtomicalsCore --> Logger
+    AtomicalsCore --> P2PNetwork
+    AtomicalsCore --> ElectrumProtocol
+    AtomicalsCore --> BlockProcessor
+    AtomicalsCore --> RPCServer
+
+    P2PNetwork --> StateManager
+    ElectrumProtocol --> StateManager
+
+    BlockProcessor --> AtomicalsProcessor
+    BlockProcessor --> UTXOManager
+    BlockProcessor --> StorageManager
+
+    AtomicalsProcessor --> StorageManager
+    AtomicalsProcessor --> StateManager
+
+    RPCServer --> APIEndpoints
+    APIEndpoints --> StateManager
+    APIEndpoints --> StorageManager
+
+    StorageManager --> Database
