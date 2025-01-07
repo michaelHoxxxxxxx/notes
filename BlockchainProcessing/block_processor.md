@@ -1,10 +1,4 @@
-# Copyright (c) 2016-2017, Neil Booth
-# Copyright (c) 2017, the ElectrumX authors
-#
-# All rights reserved.
-#
-# See the file "LICENCE" for information about the copyright
-# and warranty status of this software.
+
 
 ```python
 import asyncio  # 引入异步IO库
@@ -771,3 +765,34 @@ async def run_in_thread_with_lock(self, func, *args):
    - 使用 `await self.run_in_thread_with_lock(flush)` 在新线程中执行 `flush` 函数，确保在执行期间状态的一致性。
 
 总的来说，该方法确保了在区块处理过程中，数据能够及时且安全地刷新到数据库中，维护系统的稳定性和一致性。
+--- 
+```python
+    async def _maybe_flush(self):
+        # If caught up, flush everything as client queries are
+        # performed on the DB.
+        if self._caught_up_event.is_set():
+            await self.flush(True)
+        elif time.monotonic() > self.next_cache_check:
+            flush_arg = self.check_cache_size()
+            if flush_arg is not None:
+                await self.flush(flush_arg)
+            self.next_cache_check = time.monotonic() + 30
+```
+---### 
+`_maybe_flush` 方法
+
+#### 方法作用
+该方法用于决定是否需要刷新数据库中的数据。它根据当前的状态和缓存大小来判断是否执行刷新操作。
+
+#### 具体步骤
+1. **检查是否已同步**: 
+   - 如果 `_caught_up_event` 被设置，表示当前状态已与区块链同步，调用 `await self.flush(True)` 刷新所有数据，包括未花费的交易输出（UTXOs）。
+
+2. **检查缓存大小**: 
+   - 如果当前时间超过了 `self.next_cache_check`，调用 `self.check_cache_size()` 检查缓存的大小。
+   - 如果 `flush_arg` 不为 `None`，表示缓存已达到阈值，需要刷新，调用 `await self.flush(flush_arg)` 刷新数据。
+
+3. **更新下次检查时间**: 
+   - 将 `self.next_cache_check` 更新为当前时间加上 30 秒，以便在下一个周期内再次检查缓存大小。
+
+总的来说，该方法通过定期检查状态和缓存大小，确保数据库中的数据能够及时刷新，从而提高系统的性能和响应能力。

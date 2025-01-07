@@ -1,4 +1,9 @@
-核心功能解析
+# script
+
+![script-flow](../img/script-flow.png)
+
+## 核心功能解析
+
 OpCodes 枚举
 使用 Enumeration 定义了比特币脚本中常见的操作码（例如：OP_DUP、OP_HASH160）。
 **用途：**这些操作码是比特币脚本虚拟机的指令，用于描述如何处理交易的输入和输出。

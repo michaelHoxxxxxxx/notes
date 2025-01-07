@@ -1,7 +1,10 @@
 # coins
+
+![coins-flow](../img/coin-structure.png)
+
 ## 依赖包用途和功能介绍
 
-    ```
+```python
 import re
 import struct
 from dataclasses import dataclass
@@ -34,7 +37,7 @@ from electrumx.server.session.electrumx_session import (
     SmartCashElectrumX,
 )
 
-    ```
+```
 
 ### 1. 标准库导入
 - `re`: 正则表达式模块，用于字符串匹配和解析。
