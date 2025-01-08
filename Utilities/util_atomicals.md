@@ -1,5 +1,7 @@
 # Atomicals 协议工具类文档
+![util_atomicals](../img/atomicals-utils.png)
 `util_atomicals.py` 是 Atomicals 协议的核心工具类文件,提供了协议所需的基础功能实现。    
+
 ## 主要功能模块
 ### 1. 验证模块
 #### 1.1 工作量证明验证
