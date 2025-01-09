@@ -1,12 +1,159 @@
 
+# block_processor
+![block_processor](../img/block-processor-flow.png)
 
+## BlockProcessor 核心功能解析
+### 1. 主要组件
+#### 1.1 初始化与配置
+```python 
+def __init__(self, env, db, daemon, notifications):
+    self.env = env
+    self.db = db
+    self.daemon = daemon
+    self.notifications = notifications
+    # 重要内部状态
+    self.height = -1
+    self.tip = None
+    self.tx_count = 0
+    self.atomical_count = 0
+    
+    # 缓存系统
+    self.utxo_cache = {}
+    self.atomicals_utxo_cache = {}
+    self.hashX_subs = {}
+
+```
+#### 1.2 区块处理主循环
+```python 
+async def _process_prefetched_blocks(self):
+    """处理预获取的区块"""
+    while True:
+        if self.height == self.daemon.cached_height():
+            if not self._caught_up_event.is_set():
+                await self._first_caught_up()
+                self._caught_up_event.set()
+        await self.blocks_event.wait()
+        self.blocks_event.clear()
+        # 处理分叉或新区块
+        if self.reorg_count:
+            await self.reorg_chain(self.reorg_count)
+            self.reorg_count = 0
+        else:
+            blocks = self.prefetcher.get_prefetched_blocks()
+            await self.check_and_advance_blocks(blocks)
+
+```
+### 2. 关键功能实现
+#### 2.1 交易处理
+```python
+def advance_txs(self, txs, is_unspendable, header, height):
+    """处理新区块中的交易"""
+    # UTXO缓存更新
+    for tx, tx_hash in txs:
+        # 处理输入
+        for txin in tx.inputs:
+            if not txin.is_generation():
+                self.spend_utxo(txin.prev_hash, txin.prev_idx)
+                
+        # 处理输出
+        for idx, txout in enumerate(tx.outputs):
+            if not is_unspendable(txout.pk_script):
+                self.add_utxo(tx_hash, idx, txout)
+```
+#### 2.2 Atomicals 处理
+```python
+def create_or_delete_atomical(self, operations_found_at_inputs, 
+    atomicals_spent_at_inputs, header, height, tx_num, atomical_num, 
+    tx, tx_hash, Delete):
+    """处理 Atomicals 操作"""
+    if not operations_found_at_inputs:
+        return None
+        
+    # 获取 mint 信息
+    valid_create_op_type, mint_info = get_mint_info_op_factory(
+        self.coin, tx, tx_hash, operations_found_at_inputs,
+        atomicals_spent_at_inputs, height, self.logger
+    )
+```
+#### 2.3 数据持久化
+```python
+async def flush(self, flush_utxos):
+    """将内存中的更改写入数据库"""
+    def flush():
+        self.db.flush_dbs(self.flush_data(), flush_utxos,
+                         self.estimate_txs_remaining)
+
+    await self.run_in_thread_with_lock(flush)
+```
+### 3. 重要流程说明
+#### 3.1 区块同步流程
+1. 预获取区块
+
+- 通过 Prefetcher 组件从节点获取新区块
+- 检查区块连接性
+
+
+2. 处理区块数据
+
+- 验证交易
+- 更新 UTXO 集合
+- 处理 Atomicals 操作
+
+
+3. 状态维护
+- 更新链状态
+- 维护内存缓存
+- 触发通知
+
+#### 3.2 Atomicals 处理流程
+1. 操作识别
+```python
+# 识别操作类型
+if valid_create_op_type == "NFT":
+    # 处理 NFT mint
+    mint_info["type"] = "NFT"
+elif valid_create_op_type == "FT":
+    # 处理 FT mint
+    mint_info["type"] = "FT"
+```
+2. 状态更新
+```python
+# 更新 Atomicals 状态
+if not Delete:
+    # 创建新的 Atomical
+    self.put_atomicals_utxo(location, atomical_id, put_bytes)
+else:
+    # 删除 Atomical
+    self.delete_general_data(atomical_id_key)
+```
+### 4. 注意事项
+1. 数据一致性
+
+- 确保交易处理的原子性
+- 正确处理链重组情况
+- 维护缓存与数据库的同步
+
+
+2. 性能优化
+
+- 使用内存缓存减少数据库访问
+- 批量处理区块数据
+- 异步处理非关键操作
+
+
+3. 错误处理
+
+- 完善的异常处理机制
+- 状态回滚支持
+- 日志记录关键操作
+---
 ```python
 import asyncio  # 引入异步IO库
 import time  # 引入时间库
 from typing import TYPE_CHECKING, Callable, List, Optional, Sequence, Tuple, Type, Union  # 引入类型提示
 
 from aiorpcx import CancelledError, run_in_thread  # 引入异步RPC库
-from electrumx.lib.atomicals_blueprint_builder import AtomicalColoredOutputNft, AtomicalsTransferBlueprintBuilder  # 引入原子蓝图构建器
+from electrumx.lib.atomicals_blueprint_builder import AtomicalColoredOutputNft, AtomicalsTransferBlueprintBuilder  # 引入原子蓝图构建器e
 from electrumx.lib.hash import HASHX_LEN, double_sha256, hash_to_hex_str  # 引入哈希函数
 from electrumx.lib.script import (  # 引入脚本处理函数
     SCRIPTHASH_LEN,
